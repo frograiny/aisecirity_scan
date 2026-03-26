@@ -20,7 +20,7 @@ CORS(app)  # Enable CORS for all routes
 # ===== CONFIG =====
 MODEL_DIR = r"D:\AI\clawweb\model"
 MAX_LEN = 150
-CONFIDENCE_THRESHOLD = 75.0
+THRESHOLD = 45.0  # Hạ ngưỡng chặn xuống 45% để tóm được SQLi
 
 try:
     model = tf.keras.models.load_model(os.path.join(MODEL_DIR, 'deep_learning_agent_core.keras'))
@@ -37,20 +37,31 @@ except Exception as e:
 def scan_payload(payload):
     """Scan payload with AI model"""
     if not payload or (isinstance(payload, str) and payload.strip() == ""):
-        return "Normal", 100.0
+        return "Normal", 100.0, []
     
     try:
         seq = tokenizer.texts_to_sequences([str(payload)])
         pad = pad_sequences(seq, maxlen=MAX_LEN, padding='post', truncating='post')
         pred_probs = model.predict(pad, verbose=0)[0]
         
-        pred_class = np.argmax(pred_probs)
-        label = le.inverse_transform([pred_class])[0]
-        confidence = float(pred_probs[pred_class]) * 100
-        return label, confidence
+        # Lấy top 3 cao nhất
+        top_3_indices = np.argsort(pred_probs)[-3:][::-1]
+        top_3_labels = le.inverse_transform(top_3_indices)
+        top_3_probs = pred_probs[top_3_indices] * 100
+
+        top_3_results = []
+        for i in range(3):
+            logger.info(f"Top {i+1}: {top_3_labels[i]} ({top_3_probs[i]:.2f}%)")
+            top_3_results.append({
+                "label": str(top_3_labels[i]),
+                "confidence": round(float(top_3_probs[i]), 2)
+            })
+
+        # Vẫn trả về thằng cao nhất để chặn, kèm theo danh sách chi tiết top 3
+        return top_3_labels[0], float(top_3_probs[0]), top_3_results
     except Exception as e:
         logger.error(f"Error scanning payload: {e}")
-        return "Unknown", 0.0
+        return "Unknown", 0.0, []
 
 # ===== MIDDLEWARE (FIREWALL) =====
 @app.before_request
@@ -67,15 +78,20 @@ def firewall_middleware():
         if not payload or not str(payload).strip():
             continue
         
-        label, confidence = scan_payload(payload)
+        # Đã cập nhật để nhận thêm top_3_results
+        label, confidence, top_3_results = scan_payload(payload)
         
-        if label != "Normal" and confidence >= CONFIDENCE_THRESHOLD:
-            payload_hash = hashlib.sha256(str(payload).encode()).hexdigest()[:8]
+        if label != "Normal" and confidence >= THRESHOLD:
+            full_hash = hashlib.sha256(str(payload).encode()).hexdigest()
+            payload_hash = full_hash[0:8]
             logger.warning(f"🚨 {label} detected (Hash: {payload_hash}, Confidence: {confidence:.1f}%)")
+            
+            # Đóng gói top 3 vào JSON để gửi lên giao diện HTML
             return jsonify({
                 "error": "Access Denied by AI WAF",
                 "reason": f"Detected {label}",
-                "confidence": f"{confidence:.2f}%"
+                "confidence": f"{confidence:.2f}%",
+                "top_3_threats": top_3_results
             }), 403
         elif label != "Normal" and confidence >= 50:
             logger.info(f"⚠️ Low confidence threat: {label} ({confidence:.1f}%)")
@@ -104,5 +120,6 @@ def search():
     return f"<h3>Kết quả tìm kiếm: {safe_query}</h3><p>Website xử lý an toàn vì AI xác nhận không có mã độc.</p>"
 
 if __name__ == '__main__':
-    logger.info("🌐 Đang khởi động Web Server tại http://127.0.0.1:5000")
-    app.run(debug=False, port=5000, threaded=True)
+    # ĐÃ SỬA: Đổi sang cổng 5001 để không xung đột với webnhung.py (cổng 5000)
+    logger.info("🌐 Đang khởi động Scanner API tại http://127.0.0.1:5001")
+    app.run(debug=False, port=5001, threaded=True)

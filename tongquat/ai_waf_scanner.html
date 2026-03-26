@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -36,6 +37,7 @@
                 opacity: 0;
                 transform: translateY(-20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -150,6 +152,7 @@
             from {
                 opacity: 0;
             }
+
             to {
                 opacity: 1;
             }
@@ -209,6 +212,7 @@
             0% {
                 transform: rotate(0deg);
             }
+
             100% {
                 transform: rotate(360deg);
             }
@@ -266,6 +270,33 @@
             margin-bottom: 5px;
         }
 
+        /* Thêm style cho danh sách Top 3 */
+        .top3-list {
+            margin-top: 15px;
+            background: rgba(0, 0, 0, 0.03);
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(220, 53, 69, 0.2);
+        }
+
+        .top3-list ul {
+            list-style-type: none;
+            padding-left: 0;
+            margin-top: 8px;
+        }
+
+        .top3-list li {
+            padding: 4px 0;
+            font-size: 0.9em;
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed rgba(0, 0, 0, 0.1);
+        }
+
+        .top3-list li:last-child {
+            border-bottom: none;
+        }
+
         @media (max-width: 600px) {
             .container {
                 padding: 20px;
@@ -281,6 +312,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -293,11 +325,9 @@
         <form id="scanForm">
             <div class="form-group">
                 <label for="userInput">📝 Nhập nội dung hoặc URL để quét:</label>
-                <textarea 
-                    id="userInput" 
+                <textarea id="userInput"
                     placeholder="Ví dụ: admin' OR 1=1 --&#10;          &lt;img src='x' onerror='alert(1)'&gt;&#10;          ../../../../etc/passwd"
-                    rows="5"
-                ></textarea>
+                    rows="5"></textarea>
             </div>
 
             <div class="button-group">
@@ -312,27 +342,28 @@
         </div>
 
         <div class="result-box" id="resultBox">
-            <!-- Kết quả sẽ được chèn vào đây -->
         </div>
 
         <div class="stats" id="stats" style="display: none;">
             <p><strong>📊 Chi tiết:</strong></p>
             <p>Thời gian quét: <span id="scanTime">0</span>ms</p>
-            <p>Server: <span id="serverStatus">Kết nối</span></p>
+            <p>Server API: <span id="serverStatus">http://127.0.0.1:5001</span></p>
         </div>
 
         <div class="info-box">
             <strong>💡 Lưu ý:</strong>
-            Giao diện này sử dụng AI Bi-LSTM để phát hiện các loại tấn công: SQLi, XSS, Command Injection, Path Traversal, SSRF, vv...
+            Giao diện này sử dụng AI Bi-LSTM để phân tích chiều sâu.
         </div>
     </div>
 
     <script>
-        const API_URL = 'http://127.0.0.1:5000';
+        // Cập nhật URL trỏ đúng vào Scanner API (Port 5001)
+        const API_URL = 'http://127.0.0.1:5001';
+
         const THREAT_TYPES = {
             'SQLi': '💉 SQL Injection',
-            'XSS': '🔗 Cross-Site Scripting',
-            'Command Injection': '⚙️ Command Injection',
+            'XSS': '🐛 Cross-Site Scripting',
+            'Command Injection': '💻 Command Injection',
             'Path Traversal': '📂 Path Traversal',
             'SSRF': '🌐 Server-Side Request Forgery',
             'CSRF': '🔄 Cross-Site Request Forgery',
@@ -346,9 +377,7 @@
         const resultBox = document.getElementById('resultBox');
         const loading = document.getElementById('loading');
         const stats = document.getElementById('stats');
-        const scanForm = document.getElementById('scanForm');
 
-        // Xóa dữ liệu
         clearBtn.addEventListener('click', () => {
             userInput.value = '';
             resultBox.classList.remove('show');
@@ -357,33 +386,19 @@
             userInput.focus();
         });
 
-        // Quét
         scanBtn.addEventListener('click', async () => {
             const input = userInput.value.trim();
-
             if (!input) {
                 alert('⚠️ Vui lòng nhập dữ liệu cần quét!');
                 userInput.focus();
                 return;
             }
-
-            // Kiểm tra kết nối server
-            try {
-                const pingResponse = await fetch(API_URL + '/search?q=test', {
-                    method: 'GET',
-                    mode: 'no-cors'
-                });
-            } catch (error) {
-                alert('❌ Lỗi: Không thể kết nối tới AI Server (http://127.0.0.1:5000)\n\nVui lòng:\n1. Chắc chắn webg.py đang chạy\n2. Kiểm tra port 5000 không bị chiếm dụng');
-                return;
-            }
-
             await performScan(input);
         });
 
-        // Cho phép quét bằng Enter + Shift
         userInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && e.shiftKey) {
+                e.preventDefault();
                 scanBtn.click();
             }
         });
@@ -396,7 +411,6 @@
             const startTime = Date.now();
 
             try {
-                // Use POST for better compatibility with special characters
                 const response = await fetch(`${API_URL}/search`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -406,24 +420,22 @@
                 const endTime = Date.now();
                 const scanTime = endTime - startTime;
 
-                // Xử lý phản hồi
                 if (response.status === 403) {
-                    // Phát hiện mã độc
-                    const result = await response.json();
-                    displayDangerResult(result, scanTime);
+                    const data = await response.json();
+                    let reason = data.reason ? data.reason.replace('Detected ', '') : 'Unknown Threat';
+                    // Truyền data.top_3_threats vào hàm hiển thị
+                    displayMaliciousResult(reason, data.confidence, scanTime, data.top_3_threats);
                 } else if (response.status === 200) {
-                    // An toàn
                     displaySafeResult(scanTime);
                 } else {
-                    displayErrorResult('Server trả về lỗi: ' + response.status);
+                    displayErrorResult('Server trả về HTTP ' + response.status);
                 }
 
-                // Cập nhật stats
                 updateStats(scanTime);
 
             } catch (error) {
                 console.error('Lỗi:', error);
-                displayErrorResult('❌ Lỗi kết nối: ' + error.message);
+                displayErrorResult('❌ Lỗi kết nối: Không thể gọi API tại cổng 5001. Hãy chắc chắn webg.py đang chạy!');
             } finally {
                 scanBtn.disabled = false;
                 loading.classList.remove('show');
@@ -436,31 +448,52 @@
                     <h3>
                         <span class="safe-badge">✅ AN TOÀN</span>
                     </h3>
-                    <p><strong>Phán định:</strong> Dữ liệu được xác nhận là sạch sẽ và an toàn.</p>
+                    <p><strong>Phán định:</strong> Dữ liệu được xác nhận là sạch sẽ.</p>
                     <p><strong>Thời gian quét:</strong> ${scanTime}ms</p>
                     <p style="color: #888; font-size: 0.85em; margin-top: 10px;">
-                        AI không phát hiện bất kỳ hình thức tấn công nào. Dữ liệu này có thể được xử lý an toàn.
+                        AI đánh giá payload này không chứa mẫu hình tấn công nào (Normal Traffic).
                     </p>
                 </div>
             `;
             resultBox.classList.add('show');
         }
 
-        function displayDangerResult(data, scanTime) {
-            const threatType = data.reason || data.label || 'Unknown Threat';
-            const confidence = data.confidence || '?.??%';
+        function displayMaliciousResult(threatType, confidence, scanTime, top3Threats) {
             const friendlyName = THREAT_TYPES[threatType] || threatType;
+
+            // Xây dựng block HTML cho Top 3
+            let top3HTML = '';
+            if (top3Threats && top3Threats.length > 0) {
+                top3HTML = `
+                <div class="top3-list">
+                    <strong>🔍 Phân tích rủi ro (Top 3):</strong>
+                    <ul>`;
+
+                top3Threats.forEach((threat, index) => {
+                    let icon = index === 0 ? '🔴' : '🟠'; // Lỗi top 1 màu đỏ, top 2,3 màu cam
+                    let labelName = THREAT_TYPES[threat.label] || threat.label;
+                    top3HTML += `
+                        <li>
+                            <span>${icon} ${labelName}</span>
+                            <strong>${threat.confidence}%</strong>
+                        </li>`;
+                });
+
+                top3HTML += `</ul></div>`;
+            }
 
             resultBox.innerHTML = `
                 <div class="result-danger">
                     <h3>
-                        <span class="threat-badge">⛔ PHÁT HIỆN MẢ ĐỘC</span>
+                        <span class="threat-badge">⛔ PHÁT HIỆN MÃ ĐỘC</span>
                     </h3>
-                    <p><strong>Loại tấn công:</strong> ${friendlyName}</p>
-                    <p><strong>Độ tự tin:</strong> ${confidence}</p>
-                    <p><strong>Thời gian quét:</strong> ${scanTime}ms</p>
-                    <p style="color: #721c24; font-size: 0.85em; margin-top: 10px; background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px;">
-                        ⚠️ Dữ liệu này có khả năng chứa mã độc và sẽ bị Tường Lửa AI chặn. Vui lòng kiểm tra lại.
+                    <p><strong>Tấn công chính:</strong> ${friendlyName}</p>
+                    <p><strong>Độ tự tin (Max):</strong> ${confidence}</p>
+                    
+                    ${top3HTML}
+
+                    <p style="color: #721c24; font-size: 0.85em; margin-top: 15px; border-top: 1px solid rgba(220,53,69,0.3); padding-top: 8px;">
+                        ⚠️ Dữ liệu này chứa mã độc và chắc chắn bị AI WAF Agent (Port 5000) chặn lại.
                     </p>
                 </div>
             `;
@@ -470,7 +503,7 @@
         function displayErrorResult(message) {
             resultBox.innerHTML = `
                 <div class="result-warning">
-                    <h3>⚠️ LỖI</h3>
+                    <h3>⚠️ LỖI HỆ THỐNG</h3>
                     <p>${message}</p>
                 </div>
             `;
@@ -482,10 +515,10 @@
             stats.style.display = 'block';
         }
 
-        // Focus vào input lúc tải trang
         window.addEventListener('load', () => {
             userInput.focus();
         });
     </script>
 </body>
+
 </html>
