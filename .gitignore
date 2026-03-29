@@ -1,0 +1,47 @@
+# Data files (Kaggle downloads)
+data/*.csv
+data/*.zip
+data/**/*.csv
+data/**/*.tsv
+data/**/*.xlsx
+data/**/*.json
+!data/README.md
+!data/download_datasets.py
+
+# Kaggle API token (NEVER commit this!)
+.kaggle/
+~/.kaggle/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Scan reports (auto-generated)
+scan_report_*.json
+scan_report_*.md
+
+# Old model files (replaced by model/ directory)
+ai_model.pkl
+vectorizer.pkl
+
+# OS
+.DS_Store
+Thumbs.db
